@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>정규화 식당 — 영수증 대청소</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBF1DD; --paper2:#F4E4C4; --card:#FFFDF6;
+    --ink:#2B2620; --ink2:#6B6155;
+    --red:#D23A2E; --red-d:#A82018;
+    --mustard:#E89B2C; --gold:#F2C14E;
+    --teal:#1B9E74; --teal-d:#127556;
+    --line:rgba(43,38,32,.16);
+    --good:#1B9E74; --bad:#D23A2E; --warn:#E89B2C;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    font-family:'Gowun Dodum', sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 18% 12%, rgba(242,193,78,.22), transparent 42%),
+      radial-gradient(circle at 85% 88%, rgba(210,58,46,.12), transparent 45%),
+      var(--paper);
+    background-attachment:fixed;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; opacity:.5;
+    background-image:radial-gradient(rgba(43,38,32,.05) 1px, transparent 1px);
+    background-size:22px 22px; z-index:0;
+  }
+  .wrap{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:18px 16px 60px;}
+
+  /* ---------- shared ---------- */
+  h1,h2,h3{margin:0; font-weight:400;}
+  .display{font-family:'Black Han Sans', sans-serif;}
+  .jua{font-family:'Jua', sans-serif;}
+  .screen{display:none; animation:fadeUp .5s ease both;}
+  .screen.active{display:block;}
+  @keyframes fadeUp{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;}}
+
+  .signboard{
+    text-align:center; margin:10px auto 22px; padding:18px 20px;
+    background:var(--red); color:var(--gold);
+    border-radius:18px; box-shadow:0 8px 0 var(--red-d), 0 14px 26px rgba(168,32,24,.35);
+    border:4px solid #fff3; position:relative; max-width:560px;
+  }
+  .signboard .ko{font-family:'Black Han Sans',sans-serif; font-size:clamp(30px,7vw,46px); letter-spacing:1px; line-height:1; text-shadow:2px 3px 0 var(--red-d);}
+  .signboard .sub{font-family:'Jua',sans-serif; color:#FFF6E3; font-size:14px; margin-top:8px; letter-spacing:1px;}
+  .signboard::after{content:"🍜"; position:absolute; top:-18px; right:-10px; font-size:34px; transform:rotate(12deg);}
+  .signboard::before{content:"🥢"; position:absolute; bottom:-16px; left:-8px; font-size:30px; transform:rotate(-18deg);}
+
+  /* ---------- start ---------- */
+  .howto{
+    background:var(--card); border:2px dashed var(--line); border-radius:16px;
+    padding:18px 20px; max-width:620px; margin:0 auto 22px; line-height:1.7;
+  }
+  .howto h3{font-family:'Jua',sans-serif; color:var(--red-d); font-size:18px; margin-bottom:8px;}
+  .howto p{margin:0 0 6px; font-size:15px;}
+  .howto b{color:var(--teal-d);}
+  .diff-row{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin:18px 0 24px;}
+  .diff{
+    font-family:'Jua',sans-serif; cursor:pointer; user-select:none;
+    background:var(--card); border:3px solid var(--line); border-radius:16px;
+    padding:14px 20px; min-width:140px; text-align:center; transition:.15s;
+  }
+  .diff:hover{transform:translateY(-3px);}
+  .diff.sel{border-color:var(--red); background:#FFF4E7; box-shadow:0 6px 0 rgba(210,58,46,.25);}
+  .diff .t{font-size:20px; color:var(--ink);}
+  .diff .d{font-size:12.5px; color:var(--ink2); margin-top:4px; line-height:1.4;}
+  .big-btn{
+    display:block; margin:0 auto; font-family:'Jua',sans-serif; font-size:22px;
+    color:#fff; background:var(--teal); border:none; border-radius:16px;
+    padding:16px 46px; cursor:pointer; box-shadow:0 6px 0 var(--teal-d), 0 12px 22px rgba(27,158,116,.35);
+    transition:.1s;
+  }
+  .big-btn:active{transform:translateY(4px); box-shadow:0 2px 0 var(--teal-d);}
+
+  /* ---------- game header ---------- */
+  .hud{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;}
+  .pill{font-family:'Jua',sans-serif; background:var(--card); border:2px solid var(--line); border-radius:12px; padding:8px 14px; font-size:15px; display:flex; align-items:center; gap:7px;}
+  .pill b{color:var(--red-d); font-variant-numeric:tabular-nums;}
+  .pill.score b{color:var(--teal-d);}
+  .meter-wrap{flex:1 1 180px; min-width:150px;}
+  .meter-label{font-family:'Jua',sans-serif; font-size:12.5px; color:var(--ink2); margin-bottom:4px;}
+  .meter{height:16px; background:var(--paper2); border:2px solid var(--line); border-radius:10px; overflow:hidden;}
+  .meter > i{display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--gold),var(--mustard)); transition:width .45s ease;}
+
+  .phase-banner{
+    font-family:'Black Han Sans',sans-serif; font-size:clamp(20px,4.5vw,26px); color:var(--red-d);
+    margin:4px 0 4px; display:flex; align-items:center; gap:10px;
+  }
+  .phase-banner .step{font-family:'Jua',sans-serif; font-size:14px; background:var(--mustard); color:#fff; border-radius:20px; padding:3px 12px;}
+  .phase-hint{font-size:14px; color:var(--ink2); margin-bottom:14px;}
+
+  .layout{display:grid; grid-template-columns:1fr 360px; gap:18px; align-items:start;}
+  @media(max-width:780px){ .layout{grid-template-columns:1fr;} }
+
+  /* ---------- chips ---------- */
+  .pool{display:flex; flex-wrap:wrap; gap:12px; min-height:120px;}
+  .chip{
+    background:var(--card); border:2px solid var(--line); border-radius:14px;
+    padding:12px 12px 10px; width:160px; box-shadow:0 4px 10px rgba(43,38,32,.07);
+    animation:pop .35s cubic-bezier(.2,1.4,.4,1) both;
+    position:relative;
+  }
+  @keyframes pop{from{opacity:0; transform:scale(.6) translateY(8px);} to{opacity:1; transform:none;}}
+  .chip.bye{animation:bye .4s ease forwards;}
+  @keyframes bye{to{opacity:0; transform:scale(.4) rotate(-12deg) translateY(20px);}}
+  .chip .nm{font-family:'Jua',sans-serif; font-size:18px; color:var(--ink); margin-bottom:2px;}
+  .chip .meta{font-size:12px; color:var(--ink2); line-height:1.45; min-height:16px;}
+  .chip .price{color:var(--teal-d); font-weight:bold;}
+  .chip .btns{display:flex; gap:6px; margin-top:10px;}
+  .chip button{
+    flex:1; font-family:'Jua',sans-serif; font-size:13.5px; cursor:pointer;
+    border:none; border-radius:10px; padding:13px 4px; color:#fff; transition:.1s;
+    min-height:44px;
+  }
+  .chip button:disabled{opacity:.55; cursor:default;}
+  .chip .new{background:var(--teal);} .chip .new:active{transform:scale(.94);}
+  .chip .dup{background:var(--mustard);} .chip .dup:active{transform:scale(.94);}
+  .chip .tagN{position:absolute; top:-9px; right:-7px; background:var(--red); color:#fff; font-family:'Jua',sans-serif; font-size:11px; border-radius:20px; padding:2px 8px; box-shadow:0 2px 5px rgba(168,32,24,.4);}
+
+  /* ---------- tables ---------- */
+  .tbl{background:var(--card); border:2px solid var(--line); border-radius:14px; margin-bottom:14px; overflow:hidden;}
+  .tbl > .th{font-family:'Jua',sans-serif; font-size:15px; padding:9px 13px; color:#fff; display:flex; align-items:center; gap:7px;}
+  .tbl.cust > .th{background:var(--red);}
+  .tbl.menu > .th{background:var(--teal);}
+  .tbl.order > .th{background:var(--ink);}
+  .tbl .head, .tbl .row{display:grid; gap:6px; padding:6px 13px; font-size:13px; align-items:center;}
+  .tbl .head{color:var(--ink2); border-bottom:1.5px dashed var(--line); font-size:11.5px; font-family:'Jua',sans-serif;}
+  .tbl .row{border-bottom:1px dashed var(--line); animation:slideIn .35s ease both; font-variant-numeric:tabular-nums;}
+  .tbl .row:last-child{border-bottom:none;}
+  @keyframes slideIn{from{opacity:0; transform:translateX(-12px);} to{opacity:1; transform:none;}}
+  .tbl .row .id{font-family:'Jua',sans-serif; font-weight:bold;}
+  .tbl.cust .id{color:var(--red-d);} .tbl.menu .id{color:var(--teal-d);}
+  .tbl .empty{padding:14px 13px; color:var(--ink2); font-size:13px; font-style:italic;}
+  .oid-c{color:var(--red-d); font-weight:bold;} .oid-m{color:var(--teal-d); font-weight:bold;}
+
+  /* ---------- toast ---------- */
+  #toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:50; display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none;}
+  .toast{
+    font-family:'Jua',sans-serif; font-size:15px; color:#fff; padding:11px 20px; border-radius:30px;
+    box-shadow:0 6px 18px rgba(0,0,0,.22); animation:tIn .25s ease, tOut .3s ease 1.4s forwards;
+  }
+  .toast.good{background:var(--teal);} .toast.bad{background:var(--red);} .toast.warn{background:var(--mustard); color:var(--ink);}
+  @keyframes tIn{from{opacity:0; transform:translateY(16px);} to{opacity:1;}}
+  @keyframes tOut{to{opacity:0; transform:translateY(-10px);}}
+
+  /* ---------- reveal / result ---------- */
+  .reveal-msg{background:#FFF4E7; border:2px dashed var(--red); border-radius:14px; padding:14px 16px; margin:10px 0 16px; font-size:15px; line-height:1.6;}
+  .reveal-msg b{color:var(--red-d);}
+  .center{text-align:center;}
+  .score-big{font-family:'Black Han Sans',sans-serif; font-size:clamp(54px,15vw,96px); color:var(--teal-d); line-height:1; margin:6px 0;}
+  .weight{font-family:'Jua',sans-serif; font-size:clamp(20px,5vw,28px); color:var(--red-d); margin:8px 0 4px;}
+  .cmp{display:flex; gap:14px; justify-content:center; align-items:center; flex-wrap:wrap; margin:18px 0;}
+  .cmp .box{background:var(--card); border:2px solid var(--line); border-radius:14px; padding:14px 22px; min-width:130px;}
+  .cmp .box .n{font-family:'Black Han Sans',sans-serif; font-size:32px;}
+  .cmp .box.before .n{color:var(--ink2); text-decoration:line-through;}
+  .cmp .box.after .n{color:var(--teal-d);}
+  .cmp .box .l{font-family:'Jua',sans-serif; font-size:13px; color:var(--ink2); margin-top:3px;}
+  .cmp .arrow{font-size:30px; color:var(--mustard);}
+  .breakdown{max-width:420px; margin:0 auto 22px; background:var(--card); border:2px solid var(--line); border-radius:14px; overflow:hidden;}
+  .breakdown .bd{display:flex; justify-content:space-between; padding:10px 16px; font-size:15px; border-bottom:1px dashed var(--line);}
+  .breakdown .bd:last-child{border-bottom:none; background:#FFF4E7; font-family:'Jua',sans-serif;}
+  .breakdown .bd b{font-variant-numeric:tabular-nums;}
+  .breakdown .bd.plus b{color:var(--teal-d);} .breakdown .bd.minus b{color:var(--red);}
+  .btn-row{display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap;}
+  .btn-row .big-btn{margin:0;}
+  .ghost-btn{font-family:'Jua',sans-serif; font-size:18px; background:var(--card); color:var(--ink); border:3px solid var(--line); border-radius:16px; padding:14px 30px; cursor:pointer;}
+  .ghost-btn:active{transform:translateY(2px);}
+
+  .confetti{position:fixed; top:-20px; width:11px; height:16px; z-index:40; pointer-events:none; border-radius:2px;}
+  @keyframes fall{to{transform:translateY(105vh) rotate(720deg); opacity:.9;}}
+  .footer-note{text-align:center; color:var(--ink2); font-size:12.5px; margin-top:30px;}
+
+  /* ---------- lives / stars / records ---------- */
+  .pill.lives{font-size:17px; letter-spacing:2px; padding:6px 12px;}
+  .pill.lives .h{display:inline-block; transition:.25s;}
+  .pill.lives .h.lost{filter:grayscale(1); opacity:.28; transform:scale(.75);}
+  .par{font-size:12px; color:var(--ink2);}
+  .shake{animation:shake .45s;}
+  @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+  .stars{display:flex; gap:12px; justify-content:center; margin:12px 0 4px; min-height:64px;}
+  .stars .s{font-size:clamp(46px,12vw,64px); line-height:1; color:#DCCFB4; opacity:0; transform:scale(.3); animation:starIn .45s cubic-bezier(.2,1.6,.4,1) forwards;}
+  .stars .s.on{color:var(--gold); text-shadow:0 4px 0 var(--mustard), 0 0 18px rgba(242,193,78,.6);}
+  @keyframes starIn{to{opacity:1; transform:scale(1);}}
+  .grade{font-family:'Jua',sans-serif; font-size:clamp(17px,4.4vw,21px); color:var(--ink); margin:4px 0 2px;}
+  .best{font-family:'Jua',sans-serif; font-size:14px; color:var(--teal-d); margin:6px 0 0; min-height:18px;}
+  .best.newrec{color:var(--red); animation:pop .5s ease both;}
+  .diff .rec{font-size:13px; color:var(--mustard); margin-top:6px; min-height:17px; letter-spacing:1px;}
+  .tbl .row.dupRow{background:#FFF0D3;}
+  .tbl .row.badRow{background:#FDE3DF;}
+  .warnTag{font-size:10.5px; color:var(--red); font-family:'Jua',sans-serif; margin-left:3px;}
+  .oid-x{color:var(--red); font-weight:bold;}
+  .reveal-msg.bad{background:#FDE9E6; border-color:var(--red);}
+  .restore{max-width:420px; margin:0 auto 18px; text-align:left; background:var(--card); border:2px solid var(--line); border-radius:14px; padding:12px 16px; font-size:14px; line-height:1.7;}
+  .restore .ok{color:var(--teal-d); font-family:'Jua',sans-serif;} .restore .ng{color:var(--red); font-family:'Jua',sans-serif;}
+  .hide{display:none !important;}
+  button{touch-action:manipulation;}
+
+  /* ---------- 휴대폰: 표를 위에 고정하고 카드는 2열로 ---------- */
+  @media (max-width:780px){
+    .wrap{padding:10px 12px 40px;}
+    .signboard{margin:6px auto 16px; padding:14px 14px;}
+    .howto{padding:14px 15px; margin-bottom:16px;}
+    .howto p{font-size:14px;}
+    .diff-row{gap:8px; margin:14px 0 20px; flex-wrap:nowrap;}
+    .diff{min-width:0; flex:1; padding:10px 4px; border-radius:14px;}
+    .diff .t{font-size:17px;} .diff .d{font-size:11px;} .diff .rec{font-size:11px; letter-spacing:0;}
+
+    .hud{position:sticky; top:0; z-index:30; flex-wrap:nowrap; gap:5px; margin:-10px -12px 8px; padding:8px 12px;
+         background:rgba(251,241,221,.97); border-bottom:1.5px solid var(--line); box-shadow:0 4px 10px rgba(43,38,32,.06);}
+    .pill{padding:6px 7px; font-size:13px; gap:3px; border-radius:10px; white-space:nowrap;}
+    .pill.lives{font-size:12px; letter-spacing:0; padding:6px 5px;}
+    .par{display:none;}
+    .meter-wrap{flex:1 1 40px; min-width:36px;}
+    .meter-label{font-size:10.5px; margin-bottom:2px; white-space:nowrap;}
+    .meter-label .lbl{display:none;}
+    .meter{height:10px;}
+    #quitBtn .lbl{display:none;}
+    #soundBtn, #quitBtn{padding:6px 8px !important;}
+
+    .phase-banner{font-size:19px; margin:2px 0; gap:8px;}
+    .phase-banner .step{font-size:12.5px; padding:2px 10px;}
+    .phase-hint{font-size:12.5px; margin-bottom:8px;}
+
+    .layout{display:flex; flex-direction:column; align-items:stretch; gap:10px;}
+    #tables{order:-1; position:sticky; top:52px; z-index:20; max-height:34vh; overflow:auto;
+            border-radius:14px; box-shadow:0 8px 16px rgba(43,38,32,.14);}
+    #tables .tbl{margin-bottom:0;}
+    body[data-phase="cust"] #tables .tbl.menu, body[data-phase="cust"] #tables .tbl.order,
+    body[data-phase="menu"] #tables .tbl.cust, body[data-phase="menu"] #tables .tbl.order{display:none;}
+    body[data-phase="reveal"] #tables{order:1; position:static; max-height:none; overflow:visible; box-shadow:none;}
+    body[data-phase="reveal"] #tables .tbl{margin-bottom:10px;}
+    .tbl > .th{font-size:14px; padding:7px 11px;}
+    .tbl .head, .tbl .row{padding:5px 11px; font-size:12.5px;}
+
+    .pool{display:grid; grid-template-columns:1fr 1fr; gap:8px; min-height:0;}
+    .chip{width:auto; padding:9px 9px 8px; border-radius:12px;}
+    .chip .nm{font-size:16px;}
+    .chip .meta{font-size:11.5px; line-height:1.35;}
+    .chip .btns{gap:5px; margin-top:7px;}
+    .chip button{flex:1 1 0; min-width:0; font-size:13.5px; padding:10px 2px; white-space:nowrap;}
+    .chip button .ico{display:none;}
+    .reveal-msg{font-size:14px; padding:12px 13px; margin:0 0 6px;}
+
+    #toast{bottom:16px; width:calc(100% - 24px);}
+    .toast{font-size:13.5px; padding:9px 16px; text-align:center;}
+    .cmp{gap:8px;} .cmp .box{min-width:0; padding:10px 16px;}
+    .breakdown .bd{font-size:13.5px; padding:9px 12px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ START ============ -->
+  <section id="start" class="screen active">
+    <div class="signboard">
+      <div class="ko">정규화 식당</div>
+      <div class="sub">영수증 대청소 · DATA NORMALIZATION</div>
+    </div>
+    <div class="howto">
+      <h3>📋 상황</h3>
+      <p>대박 난 분식집! 그런데 사장님이 모든 주문을 <b>한 장의 원장</b>에 적어서, 같은 손님·메뉴 정보가 끝없이 반복돼요.</p>
+      <h3 style="margin-top:12px;">🎯 미션</h3>
+      <p>중복은 버리고, 정보는 <b>딱 한 번씩만</b> 저장하기.</p>
+      <p>· 처음 보는 손님/메뉴 → <b style="color:var(--teal-d)">새로 등록</b></p>
+      <p>· 이미 저장된 거 → <b style="color:var(--mustard)">중복 정리</b> (손님·메뉴 표를 보고 판단!)</p>
+      <h3 style="margin-top:12px;">⚠ 주의</h3>
+      <p>틀린 선택도 <b style="color:var(--red)">그대로 표에 들어가요.</b> 이미 있는 걸 또 등록하면 표가 무거워지고, 없는 걸 중복이라 하면 <b style="color:var(--red)">정보가 사라져요.</b></p>
+      <p>❤️ 목숨은 3개! 마지막에 원장을 <b>하나도 빠짐없이 복원</b>할 수 있어야 성공이에요.</p>
+      <p>빠르고 정확할수록 <b>★ 별</b>과 점수가 올라가요.</p>
+    </div>
+    <div class="diff-row" id="diffRow">
+      <div class="diff sel" data-diff="easy"><div class="t">초급</div><div class="d">손님·전화<br>작은 원장</div><div class="rec" id="rec-easy"></div></div>
+      <div class="diff" data-diff="med"><div class="t">중급</div><div class="d">손님·전화·지역<br>중간 원장</div><div class="rec" id="rec-med"></div></div>
+      <div class="diff" data-diff="hard"><div class="t">고급</div><div class="d">큰 원장 +<br>⚠ 갱신 이상 함정</div><div class="rec" id="rec-hard"></div></div>
+    </div>
+    <button class="big-btn" id="startBtn">영업 시작! 🔔</button>
+    <p class="footer-note">탭으로 플레이 · 한 판 약 2~3분 · 페스티벌 부스용</p>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="game" class="screen">
+    <div class="hud">
+      <div class="pill lives" id="lives" title="목숨"></div>
+      <div class="pill">⏱ <b id="timer">0.0</b>초 <span class="par" id="parTxt"></span></div>
+      <div class="pill score">점수 <b id="score">0</b></div>
+      <div class="meter-wrap">
+        <div class="meter-label"><span class="lbl">정리 진행도 </span><span id="prog">0/0</span></div>
+        <div class="meter"><i id="meterBar"></i></div>
+      </div>
+      <button class="pill" id="soundBtn" title="소리 on/off" style="cursor:pointer; font-family:'Jua',sans-serif; color:var(--ink2); padding:8px 10px;">🔊</button>
+      <button class="pill" id="quitBtn" title="처음부터 다시 시작" style="cursor:pointer; font-family:'Jua',sans-serif; color:var(--ink2);">🏠<span class="lbl"> 처음부터</span></button>
+    </div>
+    <div class="phase-banner"><span class="step" id="stepTag">1단계</span><span id="phaseTitle">손님 정리</span></div>
+    <div class="phase-hint" id="phaseHint"></div>
+
+    <div class="layout">
+      <div>
+        <div class="pool" id="pool"></div>
+        <div id="revealArea"></div>
+      </div>
+      <div id="tables"></div>
+    </div>
+  </section>
+
+  <!-- ============ RESULT ============ -->
+  <section id="result" class="screen">
+    <div class="center">
+      <h2 class="display" id="resTitle" style="font-size:clamp(26px,6vw,38px); color:var(--red-d);">청소 완료! 🧹</h2>
+      <div class="stars" id="stars"></div>
+      <div class="grade" id="gradeLine"></div>
+      <div class="weight" id="weightLine"></div>
+      <div class="score-big" id="finalScore">0</div>
+      <div class="jua" style="color:var(--ink2);">최종 점수</div>
+      <div class="best" id="bestLine"></div>
+
+      <div class="cmp" id="cmpBox">
+        <div class="box before"><div class="n" id="beforeCells">0</div><div class="l">청소 전 데이터 칸</div></div>
+        <div class="arrow">➜</div>
+        <div class="box after"><div class="n" id="afterCells">0</div><div class="l">청소 후 데이터 칸</div></div>
+      </div>
+
+      <div class="restore hide" id="restoreBox"></div>
+      <div class="breakdown" id="breakdown"></div>
+      <div class="btn-row">
+        <button class="big-btn" id="againBtn">다시 하기 🔁</button>
+        <button class="ghost-btn" id="menuBtn">난이도 바꾸기</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ---------------- DATA ---------------- */
+const MENUS = {
+  "김치찌개":8000, "라면":4000, "공기밥":1000, "돈가스":9000, "어묵":3000, "떡볶이":4500
+};
+const PHONE = {
+  "김민준":"010-1111","이서연":"010-2222","박도윤":"010-3333",
+  "최지우":"010-4444","정하윤":"010-5555","한소율":"010-6666"
+};
+const AREA = {
+  "김민준":"미추홀구","이서연":"연수구","박도윤":"남동구",
+  "최지우":"서구","정하윤":"부평구","한소율":"계양구"
+};
+
+const DIFFS = {
+  easy:{ label:"초급", hasArea:false, ledger:[
+    ["김민준","김치찌개"],["김민준","라면"],["이서연","김치찌개"],
+    ["이서연","공기밥"],["박도윤","라면"],["박도윤","김치찌개"]
+  ]},
+  med:{ label:"중급", hasArea:true, ledger:[
+    ["김민준","김치찌개"],["김민준","공기밥"],["이서연","돈가스"],
+    ["이서연","김치찌개"],["박도윤","라면"],["박도윤","어묵"],
+    ["최지우","돈가스"],["최지우","공기밥"],["김민준","라면"]
+  ]},
+  hard:{ label:"고급", hasArea:true, anomaly:true, ledger:[
+    ["김민준","김치찌개"],["정하윤","돈가스"],["이서연","돈가스"],
+    ["정하윤","라면",{phone:"010-9999"}],["박도윤","김치찌개"],["김민준","어묵"],
+    ["최지우","공기밥"],["이서연","공기밥"],["박도윤","돈가스"],
+    ["최지우","라면"],["정하윤","김치찌개"],["한소율","떡볶이"]
+  ]}
+};
+
+/* ---------------- STATE ---------------- */
+const MAX_LIVES = 3;
+let DIFF, cfg, phase, pool, totalChips, resolvedChips;
+let custTable, menuTable, custCount, menuCount;   // 플레이어가 직접 만든 표 (틀린 선택도 그대로 반영됨)
+let orderRows;
+let score, errors, anomaliesCaught, correctSorts, lives, over;
+let startTime, timerInt, runId = 0;
+
+/* ---------------- HELPERS ---------------- */
+const $ = s => document.querySelector(s);
+const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('#'+id).classList.add('active'); window.scrollTo(0,0); };
+function toast(msg, kind){
+  const t = document.createElement('div'); t.className='toast '+kind; t.textContent=msg;
+  $('#toast').appendChild(t); setTimeout(()=>t.remove(), 1750);
+}
+const custFields = () => cfg.hasArea ? 3 : 2;
+const menuFields = 2;
+const parTime = () => cfg.ledger.length * 2 * 4;   // ★3 목표 시간: 카드 1장당 4초
+const countDup = arr => arr.length - new Set(arr.map(x=>x.name)).size;
+
+/* ---------------- SOUND ---------------- */
+let soundOn = true, actx = null;
+function beep(freq, dur, vol, type){
+  if(!soundOn) return;
+  try{
+    if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type||'triangle'; o.frequency.value = freq; g.gain.value = vol;
+    o.connect(g); g.connect(actx.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+    o.stop(actx.currentTime + dur);
+  }catch(e){}
+}
+function fanfare(){
+  [523,659,784,1047].forEach((f,i)=> setTimeout(()=>beep(f,0.22,0.07,'triangle'), i*110));
+}
+function sadTune(){
+  [392,330,262,196].forEach((f,i)=> setTimeout(()=>beep(f,0.28,0.07,'sawtooth'), i*160));
+}
+
+/* ---------------- RECORDS (이 기기에만 저장) ---------------- */
+const REC_KEY = 'normDinerRecords_v1';
+function loadRecs(){ try{ return JSON.parse(localStorage.getItem(REC_KEY)) || {}; }catch(e){ return {}; } }
+function saveRecs(r){ try{ localStorage.setItem(REC_KEY, JSON.stringify(r)); }catch(e){} }
+function starText(n){ return '★'.repeat(n) + '☆'.repeat(3-n); }
+function renderRecs(){
+  const r = loadRecs();
+  ['easy','med','hard'].forEach(k=>{
+    const el = $('#rec-'+k); if(!el) return;
+    el.textContent = r[k] ? `${starText(r[k].stars)} ${r[k].score}점` : '';
+  });
+}
+
+/* ---------------- START ---------------- */
+$('#diffRow').addEventListener('click', e=>{
+  const d = e.target.closest('.diff'); if(!d) return;
+  document.querySelectorAll('.diff').forEach(x=>x.classList.remove('sel'));
+  d.classList.add('sel'); DIFF = d.dataset.diff;
+});
+DIFF='easy';
+function goStart(){ runId++; over = true; clearInterval(timerInt); renderRecs(); show('start'); }
+$('#startBtn').onclick = ()=> startGame();
+$('#againBtn').onclick = ()=> startGame();
+$('#menuBtn').onclick = ()=> goStart();
+// 부스 진행자용: 진행 중인 판을 멈추고 다음 체험자를 위해 시작 화면으로 즉시 리셋
+$('#quitBtn').onclick = ()=> goStart();
+$('#soundBtn').onclick = (e)=>{
+  soundOn = !soundOn;
+  e.target.textContent = soundOn ? '🔊' : '🔇';
+  if(soundOn) beep(660,0.08,0.06);
+};
+renderRecs();
+
+function startGame(){
+  runId++;
+  cfg = DIFFS[DIFF];
+  custTable = []; menuTable = [];
+  custCount = 0; menuCount = 0;
+  score = 0; errors = 0; anomaliesCaught = 0; correctSorts = 0;
+  lives = MAX_LIVES; over = false;
+  orderRows = [];
+  resolvedChips = 0;
+  totalChips = cfg.ledger.length * 2; // customers pass + menus pass
+  buildTables();
+  renderLives();
+  $('#parTxt').textContent = `/ ★목표 ${parTime()}초`;
+  setPhase('cust');
+  startTime = Date.now();
+  clearInterval(timerInt);
+  timerInt = setInterval(()=>{ $('#timer').textContent = ((Date.now()-startTime)/1000).toFixed(1); }, 100);
+  updateHud();
+  $('#revealArea').innerHTML='';
+  show('game');
+}
+
+function renderLives(){
+  $('#lives').innerHTML = Array.from({length:MAX_LIVES}, (_,i)=>`<span class="h${i<lives?'':' lost'}">❤️</span>`).join('');
+}
+
+/* ---------------- TABLES ---------------- */
+function buildTables(){
+  const areaHead = cfg.hasArea ? '<span>지역</span>' : '';
+  const custCols = cfg.hasArea ? '36px 1fr 92px 70px' : '36px 1fr 92px';
+  $('#tables').innerHTML = `
+    <div class="tbl cust">
+      <div class="th">🧍 손님 테이블</div>
+      <div class="head" style="grid-template-columns:${custCols}"><span>ID</span><span>이름</span><span>전화</span>${areaHead}</div>
+      <div id="custRows"><div class="empty">아직 비어 있어요</div></div>
+    </div>
+    <div class="tbl menu">
+      <div class="th">🍽 메뉴 테이블</div>
+      <div class="head" style="grid-template-columns:36px 1fr 70px"><span>ID</span><span>메뉴</span><span>가격</span></div>
+      <div id="menuRows"><div class="empty">아직 비어 있어요</div></div>
+    </div>
+    <div class="tbl order">
+      <div class="th">🧾 주문 테이블 <span style="font-size:12px;opacity:.8;">(키만!)</span></div>
+      <div class="head" style="grid-template-columns:1fr 1fr"><span>손님ID</span><span>메뉴ID</span></div>
+      <div id="orderRows"><div class="empty">손님·메뉴 정리 후 자동 생성</div></div>
+    </div>`;
+}
+function dupNames(arr){
+  const seen = {}; arr.forEach(x=>{ seen[x.name]=(seen[x.name]||0)+1; });
+  return seen;
+}
+function renderCustTable(){
+  const el = $('#custRows');
+  if(custTable.length===0){ el.innerHTML='<div class="empty">아직 비어 있어요</div>'; return; }
+  const cols = cfg.hasArea ? '36px 1fr 92px 70px' : '36px 1fr 92px';
+  const cnt = dupNames(custTable);
+  el.innerHTML = custTable.map(c=>{
+    const dup = cnt[c.name] > 1;
+    return `<div class="row${dup?' dupRow':''}" style="grid-template-columns:${cols}"><span class="id">${c.id}</span><span>${c.name}${dup?'<span class="warnTag">⚠중복</span>':''}</span><span>${c.phone}</span>${cfg.hasArea?`<span>${c.area}</span>`:''}</div>`;
+  }).join('');
+}
+function renderMenuTable(){
+  const el = $('#menuRows');
+  if(menuTable.length===0){ el.innerHTML='<div class="empty">아직 비어 있어요</div>'; return; }
+  const cnt = dupNames(menuTable);
+  el.innerHTML = menuTable.map(m=>{
+    const dup = cnt[m.name] > 1;
+    return `<div class="row${dup?' dupRow':''}" style="grid-template-columns:36px 1fr 70px"><span class="id">${m.id}</span><span>${m.name}${dup?'<span class="warnTag">⚠중복</span>':''}</span><span>${m.price.toLocaleString()}</span></div>`;
+  }).join('');
+}
+function scrollTablesToEnd(){ const t=$('#tables'); if(t) t.scrollTop=t.scrollHeight; }
+function addEntry(c){
+  if(c.kind==='cust'){
+    custCount++;
+    custTable.push({id:custCount, name:c.name, phone:c.phone, area:c.area});
+    renderCustTable(); scrollTablesToEnd();
+  } else {
+    menuCount++;
+    menuTable.push({id:String.fromCharCode(64+menuCount), name:c.name, price:c.price});
+    renderMenuTable(); scrollTablesToEnd();
+  }
+}
+
+/* ---------------- PHASES ---------------- */
+function setPhase(p){
+  phase = p;
+  document.body.dataset.phase = p;
+  if($('#tables')) $('#tables').scrollTop = 0;
+  if(p==='cust'){
+    $('#stepTag').textContent='1단계';
+    $('#phaseTitle').textContent='손님 정리';
+    $('#phaseHint').textContent='처음 보는 손님은 「새 손님」, 손님 테이블에 이미 있으면 「중복」! 틀리면 그대로 표에 들어가요.';
+    pool = cfg.ledger.map((row,i)=>{
+      const name = row[0]; const opt = row[2]||{};
+      return { kind:'cust', name, phone:opt.phone||PHONE[name], area:AREA[name], i };
+    });
+  } else if(p==='menu'){
+    $('#stepTag').textContent='2단계';
+    $('#phaseTitle').textContent='메뉴 정리';
+    $('#phaseHint').textContent='같은 메뉴가 또 나오죠? 처음이면 「새 메뉴」, 이미 있으면 「중복」!';
+    pool = cfg.ledger.map((row,i)=>{
+      const name = row[1];
+      return { kind:'menu', name, price:MENUS[name], i };
+    });
+  }
+  renderPool();
+}
+
+function renderPool(){
+  const el = $('#pool');
+  el.innerHTML='';
+  pool.forEach((c,idx)=>{
+    const div = document.createElement('div');
+    div.className='chip'; div.style.animationDelay=(idx*0.03)+'s';
+    let meta='';
+    if(c.kind==='cust'){
+      meta = `<div class="meta">📞 ${c.phone}${c.area?'<br>📍 '+c.area:''}</div>`;
+    } else {
+      meta = `<div class="meta price">${c.price.toLocaleString()}원</div>`;
+    }
+    const newLabel = c.kind==='cust' ? '<span class="ico">🆕 </span>새 손님' : '<span class="ico">🆕 </span>새 메뉴';
+    div.innerHTML = `
+      <div class="nm">${c.name}</div>
+      ${meta}
+      <div class="btns">
+        <button class="new">${newLabel}</button>
+        <button class="dup"><span class="ico">♻️ </span>중복</button>
+      </div>`;
+    div.querySelector('.new').onclick = ()=> resolveChip(c, div, 'new');
+    div.querySelector('.dup').onclick = ()=> resolveChip(c, div, 'dup');
+    el.appendChild(div);
+  });
+}
+
+function resolveChip(c, div, choice){
+  if(over || c._resolved) return;   // 게임 종료 후 입력, 빠른 연타/터치+클릭 중복 입력 방지
+  c._resolved = true;
+  div.querySelectorAll('button').forEach(b=>b.disabled=true);
+  const myRun = runId;
+
+  const isCust = c.kind==='cust';
+  const table = isCust ? custTable : menuTable;
+  const existing = table.find(x=>x.name===c.name);   // 플레이어가 만든 표 기준으로 판단
+  const truth = existing ? 'dup' : 'new';
+  const isAnomaly = isCust && !!existing && existing.phone !== c.phone;  // 같은 손님인데 전화번호가 다름
+  const correct = (choice === truth);
+  const what = isCust ? '손님' : '메뉴';
+
+  // 자동 교정 없음: 플레이어의 선택이 그대로 표에 반영된다
+  //  - 「새로 등록」 → 표에 한 줄 추가 (이미 있으면 중복 저장)
+  //  - 「중복」     → 아무것도 추가하지 않음 (표에 없었다면 그 정보는 사라짐)
+  if(choice==='new') addEntry(c);
+
+  if(correct){
+    if(isAnomaly){
+      anomaliesCaught++; score += 30;
+      toast('⚠ 갱신 이상 발견! 같은 손님인데 번호만 달라요 → +30', 'warn');
+      beep(880,0.1,0.07,'triangle'); setTimeout(()=>beep(1175,0.15,0.07,'triangle'),90);
+    } else {
+      correctSorts++; score += 10;
+      toast(truth==='new' ? '새로 등록! +10' : '중복 정리! +10', 'good');
+      beep(700,0.09,0.06,'triangle');
+    }
+  } else {
+    errors++; score = Math.max(0, score-5);
+    let msg;
+    if(truth==='dup') msg = isAnomaly ? '같은 손님인데 번호만 달라요! 두 명으로 저장됨 💔' : `이미 표에 있는 ${what}예요 → 중복 저장됨 💔`;
+    else msg = `표에 없는 ${what}예요 → 정보가 사라졌어요 💔`;
+    toast(msg, 'bad');
+    beep(160,0.2,0.08,'sawtooth');
+    loseLife();
+  }
+
+  // remove chip
+  div.classList.add('bye');
+  pool = pool.filter(x=>x!==c);
+  resolvedChips++;
+  updateHud();
+  setTimeout(()=>{
+    div.remove();
+    if(myRun===runId && !over && pool.length===0) nextPhase();
+  }, 360);
+}
+
+function loseLife(){
+  lives--;
+  renderLives();
+  const el = $('#lives'); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+  if(lives<=0){
+    over = true;
+    clearInterval(timerInt);
+    const myRun = runId;
+    setTimeout(()=>{ if(myRun===runId) gameOver(); }, 800);
+  }
+}
+
+function nextPhase(){
+  if(phase==='cust'){ setPhase('menu'); }
+  else if(phase==='menu'){ revealOrders(); }
+}
+
+/* ---------------- REVEAL ORDER TABLE + 복원 검사 ---------------- */
+function revealOrders(){
+  clearInterval(timerInt);
+  const elapsed = (Date.now()-startTime)/1000;
+  $('#stepTag').textContent='3단계';
+  $('#phaseTitle').textContent='주문 테이블 & 장부 복원 검사';
+  document.body.dataset.phase = 'reveal';
+  if(window.innerWidth<=780) window.scrollTo({top:0, behavior:'smooth'});
+
+  orderRows = cfg.ledger.map(row=>{
+    const cu = custTable.find(x=>x.name===row[0]);
+    const me = menuTable.find(x=>x.name===row[1]);
+    return { c: cu?cu.id:null, m: me?me.id:null, cname:row[0], mname:row[1] };
+  });
+  const el = $('#orderRows');
+  el.innerHTML='';
+  orderRows.forEach((o,idx)=>{
+    const r = document.createElement('div');
+    const bad = o.c===null || o.m===null;
+    r.className='row'+(bad?' badRow':''); r.style.gridTemplateColumns='1fr 1fr'; r.style.animationDelay=(idx*0.06)+'s';
+    r.innerHTML = `${o.c===null?'<span class="oid-x">❓ 없음</span>':`<span class="oid-c">${o.c}</span>`}${o.m===null?'<span class="oid-x">❓ 없음</span>':`<span class="oid-m">${o.m}</span>`}`;
+    el.appendChild(r);
+  });
+
+  const lost = orderRows.filter(o=>o.c===null || o.m===null);
+  const lostNames = [...new Set([
+    ...orderRows.filter(o=>o.c===null).map(o=>o.cname+'(손님)'),
+    ...orderRows.filter(o=>o.m===null).map(o=>o.mname+'(메뉴)')
+  ])];
+  const dupCount = countDup(custTable) + countDup(menuTable);
+  const before = cfg.ledger.length * (custFields()+menuFields);
+  const after  = custTable.length*custFields() + menuTable.length*menuFields + orderRows.length*2;
+  const cut = Math.round((1-after/before)*100);
+  const restoreOk = lost.length===0;
+  const info = { before, after, cut, restoreOk, lostRows:lost.length, lostNames, dupCount, elapsed };
+
+  if(restoreOk){
+    $('#phaseHint').textContent='주문을 ID 키 두 개로 바꿨어요. 원장의 모든 주문을 다시 찾아낼 수 있는지 검사했어요.';
+    $('#revealArea').innerHTML = `
+      <div class="reveal-msg">
+        🔍 <b>장부 복원 검사 통과!</b> 원장 <b>${cfg.ledger.length}행</b>을 표에서 전부 다시 찾아낼 수 있어요.<br>
+        데이터 칸 <b>${before} → ${after}</b> ${cut>0 ? `(약 <b>${cut}% 감량</b>)` : '(장부가 작아서 칸 수는 그대로지만, 같은 정보는 이제 <b>한 번만</b> 저장돼요)'}
+        ${dupCount>0 ? `<br>단, 중복 저장 <b>${dupCount}건</b> 때문에 표가 조금 무거워졌어요.` : ''}
+        <div style="margin-top:12px; text-align:center;"><button class="big-btn" id="toResult">결과 보기 🎉</button></div>
+      </div>`;
+    beep(880,0.12,0.06,'triangle');
+  } else {
+    $('#phaseHint').textContent='주문을 ID로 바꿔 보니… 주인을 잃은 주문이 있어요!';
+    $('#revealArea').innerHTML = `
+      <div class="reveal-msg bad">
+        🔍 <b>장부 복원 실패!</b> 원장 ${cfg.ledger.length}행 중 <b>${lost.length}행</b>을 복원할 수 없어요.<br>
+        사라진 정보: <b>${lostNames.join(', ')}</b>
+        <div style="margin-top:12px; text-align:center;"><button class="big-btn" id="toResult">결과 보기</button></div>
+      </div>`;
+    beep(200,0.3,0.08,'sawtooth');
+  }
+  $('#toResult').onclick = ()=> finish(info);
+  $('#meterBar').style.width='100%';
+  $('#prog').textContent = totalChips+'/'+totalChips;
+}
+
+/* ---------------- HUD ---------------- */
+function updateHud(){
+  $('#score').textContent = score;
+  $('#prog').textContent = resolvedChips+'/'+totalChips;
+  $('#meterBar').style.width = (resolvedChips/totalChips*100)+'%';
+}
+
+/* ---------------- RESULT ---------------- */
+function renderStars(n, fail){
+  const box = $('#stars');
+  box.innerHTML = [0,1,2].map(i=>`<span class="s${i<n?' on':''}" style="animation-delay:${0.25+i*0.28}s">★</span>`).join('');
+  if(!fail) for(let i=0;i<n;i++) setTimeout(()=>beep(660+i*220,0.16,0.07,'triangle'), 250+i*280);
+}
+function countUp(target){
+  let cur=0;
+  const fEl = $('#finalScore'); fEl.textContent='0';
+  const step = Math.max(1, Math.round(target/40));
+  const ci = setInterval(()=>{
+    cur += step; if(cur>=target){ cur=target; clearInterval(ci); }
+    fEl.textContent = cur;
+  }, 25);
+}
+function setResultHeader(title, fail){
+  const t = $('#resTitle');
+  t.textContent = title;
+  t.style.color = fail ? 'var(--red)' : 'var(--red-d)';
+}
+
+function finish(info){
+  const elapsed = info.elapsed;
+  const par = parTime();
+  $('#beforeCells').textContent = info.before;
+  $('#afterCells').textContent = info.after;
+  $('#cmpBox').classList.remove('hide');
+  $('#bestLine').textContent=''; $('#bestLine').classList.remove('newrec');
+
+  if(!info.restoreOk){
+    // 정보 손실 = 정규화 실패 (줄이되 하나도 잃지 않는 게 핵심)
+    setResultHeader('장부 복원 실패 😱', true);
+    renderStars(0, true);
+    $('#gradeLine').textContent = '정규화는 "줄이되, 하나도 잃지 않는 것"이에요!';
+    $('#weightLine').textContent = '';
+    $('#restoreBox').classList.remove('hide');
+    $('#restoreBox').innerHTML = `<span class="ng">❌ 복원 못 한 주문 ${info.lostRows}행</span><br>사라진 정보: ${info.lostNames.join(', ')}<br>표에 없는 걸 「중복」으로 처리하면 그 정보가 영영 사라져요.`;
+    $('#breakdown').innerHTML = `
+      <div class="bd plus"><span>✅ 정확한 분류 (${correctSorts}건)</span><b>+${correctSorts*10}</b></div>
+      <div class="bd minus"><span>❌ 실수 (${errors}건)</span><b>-${errors*5}</b></div>
+      <div class="bd"><span>최종 점수</span><b>${score}점</b></div>`;
+    countUp(score);
+    show('result');
+    sadTune();
+    return;
+  }
+
+  const speedBonus = Math.max(0, Math.round((par - elapsed)*3));
+  const perfectBonus = errors===0 ? 50 : 0;
+  score += speedBonus + perfectBonus;
+  const stars = (errors===0 && elapsed<=par) ? 3 : (errors<=1 ? 2 : 1);
+  const grades = {
+    3:'완벽한 정규화! 데이터 장인 🏅',
+    2: errors===0 ? '실수 없이 깔끔해요! 조금만 더 빠르면 ★3' : '깔끔해요! 실수를 하나만 줄이면 ★3',
+    1:'정리는 성공! 실수를 줄여서 별을 모아 보세요'
+  };
+  setResultHeader('청소 완료! 🧹', false);
+  renderStars(stars, false);
+  $('#gradeLine').textContent = grades[stars];
+  $('#weightLine').textContent = info.cut>0 ? `데이터 무게 ${info.cut}% 감량! 🪶` : '같은 정보는 딱 한 번만! 🪶';
+  $('#restoreBox').classList.remove('hide');
+  $('#restoreBox').innerHTML = `<span class="ok">✔ 장부 복원 검사 통과</span> — 원장 ${cfg.ledger.length}행 모두 복원 가능` +
+    (info.dupCount>0 ? `<br><span class="ng">⚠ 중복 저장 ${info.dupCount}건</span> — 같은 정보가 두 번 저장돼 표가 무거워졌어요.` : '');
+
+  let rows = `
+    <div class="bd plus"><span>✅ 정확한 분류 (${correctSorts}건)</span><b>+${correctSorts*10}</b></div>`;
+  if(cfg.anomaly) rows += `<div class="bd plus"><span>⚠ 갱신 이상 적발 (${anomaliesCaught}건)</span><b>+${anomaliesCaught*30}</b></div>`;
+  rows += `
+    <div class="bd minus"><span>❌ 실수 (${errors}건)</span><b>-${errors*5}</b></div>
+    <div class="bd plus"><span>⚡ 속도 보너스 (${elapsed.toFixed(1)}초 / 목표 ${par}초)</span><b>+${speedBonus}</b></div>`;
+  if(perfectBonus) rows += `<div class="bd plus"><span>💯 무실수 보너스</span><b>+${perfectBonus}</b></div>`;
+  rows += `<div class="bd"><span>최종 점수 · ${starText(stars)}</span><b>${score}점</b></div>`;
+  $('#breakdown').innerHTML = rows;
+  countUp(score);
+
+  // 최고 기록 (별이 더 많거나, 별이 같으면 점수가 높을 때 갱신)
+  const recs = loadRecs(); const prev = recs[DIFF];
+  const isNew = !prev || stars>prev.stars || (stars===prev.stars && score>prev.score);
+  if(isNew){
+    recs[DIFF] = {stars, score}; saveRecs(recs);
+    $('#bestLine').textContent = '🏆 최고 기록 갱신!'; $('#bestLine').classList.add('newrec');
+  } else {
+    $('#bestLine').textContent = `최고 기록: ${starText(prev.stars)} ${prev.score}점`;
+  }
+
+  show('result');
+  fanfare();
+  confetti(stars===3 ? 120 : 70);
+}
+
+function gameOver(){
+  setResultHeader('영업 정지! 🚫', true);
+  renderStars(0, true);
+  $('#gradeLine').textContent = '실수 3번… 장부가 엉망이 됐어요. 다시 도전!';
+  $('#weightLine').textContent = '';
+  $('#cmpBox').classList.add('hide');
+  $('#bestLine').textContent=''; $('#bestLine').classList.remove('newrec');
+  $('#restoreBox').classList.remove('hide');
+  $('#restoreBox').innerHTML = `<span class="ng">정리 진행도 ${resolvedChips}/${totalChips}</span>에서 멈췄어요.<br>오른쪽 표를 잘 보고, 이미 있는지 먼저 확인해 보세요.`;
+  $('#breakdown').innerHTML = `
+    <div class="bd plus"><span>✅ 정확한 분류 (${correctSorts}건)</span><b>+${correctSorts*10}</b></div>
+    <div class="bd minus"><span>❌ 실수 (${errors}건)</span><b>-${errors*5}</b></div>
+    <div class="bd"><span>최종 점수</span><b>${score}점</b></div>`;
+  countUp(score);
+  show('result');
+  sadTune();
+}
+
+/* ---------------- CONFETTI ---------------- */
+function confetti(n){
+  const colors=['#D23A2E','#E89B2C','#F2C14E','#1B9E74','#FFFDF6'];
+  for(let i=0;i<(n||70);i++){
+    const c=document.createElement('div'); c.className='confetti';
+    c.style.left=Math.random()*100+'vw';
+    c.style.background=colors[i%colors.length];
+    const dur=2.2+Math.random()*1.8;
+    c.style.animation=`fall ${dur}s linear ${Math.random()*0.6}s forwards`;
+    c.style.transform=`rotate(${Math.random()*360}deg)`;
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(), (dur+1)*1000);
+  }
+}
+</script>
+</body>
+</html>
